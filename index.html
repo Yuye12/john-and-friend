@@ -3,82 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>John and friends - Match 3</title>
-    <link href="https://fonts.googleapis.com/css2?family=Palsy&family=Varela+Round&display=swap" rel="stylesheet">
+    <title>John and friends - Northern Forest</title>
+    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&display=swap" rel="stylesheet">
     <style>
         :root { 
-            --pink: #ff85b2; 
-            --bg: #fff5f8; 
-            --font-cute: 'Varela Round', 'Palsy', sans-serif;
+            --deep-forest-top: #0a1f26;
+            --deep-forest-mid: #1a3a4a;
+            --aurora-gradient: linear-gradient(180deg, #002b36 0%, #0d5c63 100%);
+            --font-cute: 'Varela Round', sans-serif;
         }
         body { 
-            background: var(--bg); 
-            display: flex; flex-direction: column; 
-            align-items: center; 
-            font-family: var(--font-cute); 
-            margin: 0; 
-            touch-action: none; 
-            overflow: hidden;
+            background: linear-gradient(to bottom, var(--deep-forest-top) 0%, var(--deep-forest-mid) 60%, rgba(0,0,0,0) 100%), var(--aurora-gradient);
+            background-attachment: fixed; background-size: cover;
+            display: flex; flex-direction: column; align-items: center; 
+            font-family: var(--font-cute); margin: 0; 
+            touch-action: none; overflow: hidden; height: 100vh;
         }
-        h1 { 
-            color: var(--pink); 
-            margin: 20px 0; 
-            font-size: 36px;
-            text-shadow: 3px 3px 0px white; 
-            pointer-events: none; 
+        /* 简约森林剪影 */
+        body::before {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path fill="%230a1f26" d="M0,100 L0,55 C15,45 25,65 35,55 C45,45 55,75 65,55 C75,35 85,65 95,55 L100,65 L100,100 Z"/></svg>');
+            background-size: auto 100%; background-position: bottom; z-index: -1;
         }
-        #game-box { 
-            padding: 12px; 
-            background: white; 
-            border-radius: 30px; 
-            box-shadow: 0 15px 45px rgba(255, 133, 178, 0.25); 
-            position: relative; 
+        h1 { color: white; margin: 15px 0; font-size: 32px; text-shadow: 0 0 10px rgba(0,255,255,0.8); }
+        #music-ctrl {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(255,255,255,0.25); border: 2px solid white;
+            color: white; border-radius: 50%; width: 50px; height: 50px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 24px; backdrop-filter: blur(10px); z-index: 100;
         }
-        canvas { 
-            cursor: grab; 
-            border-radius: 20px; 
-            background: #fffcfd; 
-            display: block; 
-            filter: saturate(1.2) contrast(1.05); 
-        }
-        .score-container { 
-            margin-top: 20px; 
-            font-size: 32px; 
-            color: var(--pink); 
-            font-weight: bold; 
-            background: white;
-            padding: 10px 40px;
-            border-radius: 50px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-        }
-        #score { color: #ff5e99; }
+        #game-box { padding: 12px; background: #d2b48c; border: 8px solid #8b5a2b; border-radius: 35px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        canvas { border-radius: 20px; background: rgba(255, 255, 255, 0.9); display: block; }
+        .score-panel { margin-top: 15px; padding: 12px 45px; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); border-radius: 50px; color: white; font-size: 28px; font-weight: bold; border: 2px solid rgba(255,255,255,0.35); }
     </style>
 </head>
 <body>
 
+    <button id="music-ctrl">🔇</button>
     <h1>John and friends</h1>
-    
-    <div id="game-box">
-        <canvas id="gameCanvas"></canvas>
-    </div>
+    <div id="game-box"><canvas id="gameCanvas"></canvas></div>
+    <div class="score-panel">SCORE: <span id="score">0</span></div>
 
-    <div class="score-container">
-        SCORE: <span id="score">0</span>
-    </div>
+    <audio id="bgm"><source src="theme-song.mp3" type="audio/mpeg"></audio>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
+        const bgm = document.getElementById('bgm');
+        const musicBtn = document.getElementById('music-ctrl');
 
+        const sfxMove = new Audio('move.mp3');
+        const sfxMatch = new Audio('match.mp3');
+        
         const ROWS = 7, COLS = 7, SIZE = 60;
         const charNames = ['John', 'Mary Ann', 'Goose', 'Moose', 'Crow'];
         
         let images = {}, board = [], score = 0;
         let dragStart = null, isAnimating = false;
-        let floatingTexts = []; 
-        let hintTiles = null;   
-        let lastActionTime = Date.now(); 
+        let floatingTexts = [], snowParticles = [], fadeTimer = null;
+        let hintTiles = null, lastActionTime = Date.now();
+        let isMusicActive = false; // 记录玩家是否开启了音乐
+        let nextPlayTimer = null; // 5秒间隔计时器
+
+        // --- 核心：改进的音乐循环逻辑 ---
+        
+        function playWithFadeIn() {
+            bgm.volume = 0;
+            bgm.play().catch(e => console.log("Play interrupted"));
+            fadeMusic(1.0, 2000); // 2秒淡入
+        }
+
+        // 监听播放结束事件
+        bgm.addEventListener('ended', () => {
+            if (isMusicActive) {
+                console.log("Track ended, waiting 5 seconds...");
+                // 5秒后再次响起
+                nextPlayTimer = setTimeout(() => {
+                    if (isMusicActive) playWithFadeIn();
+                }, 5000); 
+            }
+        });
+
+        function fadeMusic(target, duration, callback) {
+            clearInterval(fadeTimer);
+            const step = 0.05;
+            const interval = duration / (target === 0 ? (bgm.volume / step || 1) : (target / step));
+            fadeTimer = setInterval(() => {
+                if (target > bgm.volume) {
+                    bgm.volume = Math.min(bgm.volume + step, target);
+                    if (bgm.volume >= target) { clearInterval(fadeTimer); if(callback) callback(); }
+                } else {
+                    bgm.volume = Math.max(bgm.volume - step, 0);
+                    if (bgm.volume <= 0) { clearInterval(fadeTimer); bgm.pause(); if(callback) callback(); }
+                }
+            }, interval);
+        }
+
+        musicBtn.addEventListener('click', () => {
+            if (isMusicActive) {
+                // 关闭音乐：淡出并清除定时器
+                isMusicActive = false;
+                clearTimeout(nextPlayTimer);
+                fadeMusic(0, 1500, () => musicBtn.innerText = "🔇");
+            } else {
+                // 开启音乐
+                isMusicActive = true;
+                musicBtn.innerText = "🔊";
+                playWithFadeIn();
+            }
+        });
+
+        // --- 以下是游戏渲染与交互逻辑 (保持不变) ---
+
+        function playSFX(audio) {
+            const clone = audio.cloneNode();
+            clone.volume = 0.4;
+            clone.play().catch(e => {}); 
+        }
 
         function init() {
             const dpr = window.devicePixelRatio || 2;
@@ -88,8 +131,9 @@
             canvas.style.height = (ROWS * SIZE) + 'px';
             ctx.scale(dpr, dpr);
 
-            // 设置 Canvas 默认字体为圆体
-            ctx.font = "bold 20px 'Varela Round'";
+            for(let i=0; i<80; i++) {
+                snowParticles.push({ x: Math.random()*COLS*SIZE, y: Math.random()*ROWS*SIZE, r: Math.random()*1.8+0.5, v: Math.random()*0.3 + 0.1 });
+            }
 
             charNames.forEach(name => {
                 const img = new Image();
@@ -107,208 +151,146 @@
                     board[r][c] = { type, animX: 0, animY: 0 };
                 }
             }
-            requestAnimationFrame(render);
+            requestAnimationFrame(renderLoop);
         }
 
-        function addFloatingText(val, x, y) {
-            floatingTexts.push({
-                val: "+" + val,
-                x: x + SIZE/2,
-                y: y + SIZE/2,
-                alpha: 1,
-                life: 60
-            });
-        }
-
-        function findHint() {
-            const dirs = [[1, 0], [0, 1]];
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    for (let [dr, dc] of dirs) {
-                        let r2 = r + dr, c2 = c + dc;
-                        if (r2 < ROWS && c2 < COLS) {
-                            let t1 = board[r][c], t2 = board[r2][c2];
-                            let old1 = t1.type, old2 = t2.type;
-                            t1.type = old2; t2.type = old1;
-                            if (checkMatchesOnly()) {
-                                t1.type = old1; t2.type = old2;
-                                return [{r, c}, {r: r2, c: c2}];
-                            }
-                            t1.type = old1; t2.type = old2;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        function checkMatchesOnly() {
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    let type = board[r][c].type;
-                    if (c < COLS - 2 && board[r][c+1].type === type && board[r][c+2].type === type) return true;
-                    if (r < ROWS - 2 && board[r+1][c].type === type && board[r+2][c].type === type) return true;
-                }
-            }
-            return false;
-        }
-
-        function render() {
+        function renderLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            let now = Date.now();
+            const now = Date.now();
 
-            if (!isAnimating && now - lastActionTime > 6000) {
-                if (!hintTiles) hintTiles = findHint();
-            } else { hintTiles = null; }
+            // 70% 透明度下雪
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; 
+            snowParticles.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                p.y += p.v; if(p.y > ROWS*SIZE) p.y = -p.r;
+            });
+
+            if (!isAnimating && now - lastActionTime > 6000) { if (!hintTiles) hintTiles = findHint(); } 
+            else { hintTiles = null; }
 
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
                     const tile = board[r][c];
                     if (!tile) continue;
-
-                    tile.animX *= 0.7; tile.animY *= 0.7;
-                    if (Math.abs(tile.animX) < 0.1) tile.animX = 0;
-                    if (Math.abs(tile.animY) < 0.1) tile.animY = 0;
-
-                    let scale = 1;
-                    if (hintTiles && ((hintTiles[0].r === r && hintTiles[0].c === c) || (hintTiles[1].r === r && hintTiles[1].c === c))) {
-                        scale = 1 + Math.sin(now / 200) * 0.12;
-                    }
-
-                    const drawX = c * SIZE + tile.animX;
-                    const drawY = r * SIZE + tile.animY;
+                    tile.animX *= 0.75; tile.animY *= 0.75;
+                    let scale = (hintTiles && hintTiles.some(h => h.r===r && h.c===c)) ? 1 + Math.sin(now/150)*0.1 : 1;
                     
                     ctx.save();
-                    ctx.translate(drawX + SIZE/2, drawY + SIZE/2);
+                    ctx.translate(c*SIZE + tile.animX + SIZE/2, r*SIZE + tile.animY + SIZE/2);
                     ctx.scale(scale, scale);
-                    
-                    ctx.fillStyle = '#fff9fb';
-                    ctx.beginPath();
-                    ctx.roundRect(-SIZE/2+3, -SIZE/2+3, SIZE-6, SIZE-6, 12);
-                    ctx.fill();
-
+                    ctx.fillStyle = "rgba(255,255,255,0.75)";
+                    ctx.beginPath(); ctx.roundRect(-SIZE/2+4, -SIZE/2+4, SIZE-8, SIZE-8, 14); ctx.fill();
                     const img = images[charNames[tile.type]];
-                    if (img && img.complete) {
-                        ctx.drawImage(img, 0, 0, img.width, img.width, -SIZE/2+8, -SIZE/2+8, SIZE-16, SIZE-16);
-                    }
+                    if (img && img.complete) ctx.drawImage(img, -SIZE/2+8, -SIZE/2+8, SIZE-16, SIZE-16);
                     ctx.restore();
                 }
             }
 
             for (let i = floatingTexts.length - 1; i >= 0; i--) {
                 let ft = floatingTexts[i];
-                ctx.fillStyle = `rgba(255, 133, 178, ${ft.alpha})`;
-                ctx.font = "bold 24px 'Varela Round'";
-                ctx.textAlign = "center";
+                ctx.fillStyle = `rgba(255, 255, 255, ${ft.alpha})`;
+                ctx.font = "bold 24px 'Varela Round'"; ctx.textAlign = "center";
                 ctx.fillText(ft.val, ft.x, ft.y);
-                ft.y -= 1.2; ft.alpha -= 0.02; ft.life--;
-                if (ft.life <= 0) floatingTexts.splice(i, 1);
+                ft.y -= 1; ft.alpha -= 0.02; if(ft.alpha <= 0) floatingTexts.splice(i,1);
             }
-
-            requestAnimationFrame(render);
+            requestAnimationFrame(renderLoop);
         }
 
         async function slideSwap(r1, c1, r2, c2) {
-            isAnimating = true;
-            lastActionTime = Date.now();
+            isAnimating = true; lastActionTime = Date.now();
+            playSFX(sfxMove); 
             const t1 = board[r1][c1], t2 = board[r2][c2];
-
-            t1.animX = (c2 - c1) * SIZE; t1.animY = (r2 - r1) * SIZE;
-            t2.animX = (c1 - c2) * SIZE; t2.animY = (r1 - r2) * SIZE;
+            t1.animX = (c2-c1)*SIZE; t1.animY = (r2-r1)*SIZE;
+            t2.animX = (c1-c2)*SIZE; t2.animY = (r1-r2)*SIZE;
             [t1.type, t2.type] = [t2.type, t1.type];
-
-            await new Promise(res => setTimeout(res, 250));
-
-            const matches = getMatches();
-            if (matches) { await processSequence(matches); } 
+            await new Promise(r => setTimeout(r, 250));
+            const m = getMatches();
+            if(m) await processSequence(m);
             else {
-                t1.animX = (c2 - c1) * SIZE; t1.animY = (r2 - r1) * SIZE;
-                t2.animX = (c1 - c2) * SIZE; t2.animY = (r1 - r2) * SIZE;
+                playSFX(sfxMove); 
+                t1.animX = (c2-c1)*SIZE; t1.animY = (r2-r1)*SIZE;
+                t2.animX = (c1-c2)*SIZE; t2.animY = (r1-r2)*SIZE;
                 [t1.type, t2.type] = [t2.type, t1.type];
-                await new Promise(res => setTimeout(res, 250));
+                await new Promise(r => setTimeout(r, 250));
             }
             isAnimating = false;
+        }
+
+        async function processSequence(m) {
+            while(m) {
+                playSFX(sfxMatch);
+                let count = 0, fx, fy;
+                for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
+                    if(m[r][c]) { if(count===0){fx=c*SIZE; fy=r*SIZE;} board[r][c]=null; count++; }
+                }
+                score += count*10; scoreEl.innerText = score;
+                floatingTexts.push({val: "+"+(count*10), x: fx+SIZE/2, y: fy+SIZE/2, alpha: 1});
+                await new Promise(r => setTimeout(r, 300));
+                for(let c=0; c<COLS; c++) {
+                    let empty = ROWS-1;
+                    for(let r=ROWS-1; r>=0; r--) {
+                        if(board[r][c]){
+                            let oldR = r; board[empty][c]=board[r][c];
+                            if(empty!==r){ board[empty][c].animY=(oldR-empty)*SIZE; board[r][c]=null; }
+                            empty--;
+                        }
+                    }
+                    for(let r=empty; r>=0; r--) board[r][c]={type:Math.floor(Math.random()*5), animX:0, animY:-ROWS*SIZE};
+                }
+                await new Promise(r => setTimeout(r, 400));
+                m = getMatches();
+            }
         }
 
         function getMatches() {
             let matched = Array.from({length: ROWS}, () => Array(COLS).fill(false));
             let found = false;
-            for (let r=0; r<ROWS; r++) {
-                for (let c=0; c<COLS; c++) {
-                    let t = board[r][c]?.type; if (t===undefined) continue;
-                    if (c<COLS-2 && board[r][c+1]?.type===t && board[r][c+2]?.type===t) matched[r][c]=matched[r][c+1]=matched[r][c+2]=found=true;
-                    if (r<ROWS-2 && board[r+1][c]?.type===t && board[r+2][c]?.type===t) matched[r][c]=matched[r+1][c]=matched[r+2][c]=found=true;
-                }
+            for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
+                let t = board[r][c]?.type; if(t===undefined) continue;
+                if(c<COLS-2 && board[r][c+1]?.type===t && board[r][c+2]?.type===t) matched[r][c]=matched[r][c+1]=matched[r][c+2]=found=true;
+                if(r<ROWS-2 && board[r+1][c]?.type===t && board[r+2][c]?.type===t) matched[r][c]=matched[r+1][c]=matched[r+2][c]=found=true;
             }
             return found ? matched : null;
         }
 
-        async function processSequence(matches) {
-            while (matches) {
-                let count = 0;
-                let firstX, firstY;
-                for (let r=0; r<ROWS; r++) {
-                    for (let c=0; c<COLS; c++) {
-                        if (matches[r][c]) {
-                            if (count === 0) { firstX = c*SIZE; firstY = r*SIZE; }
-                            board[r][c] = null; count++;
-                        }
+        function findHint() {
+            const dirs = [[1,0],[0,1]];
+            for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
+                for(let [dr, dc] of dirs) {
+                    let r2=r+dr, c2=c+dc;
+                    if(r2<ROWS && c2<COLS) {
+                        let t1=board[r][c], t2=board[r2][c2];
+                        let o1=t1.type, o2=t2.type;
+                        t1.type=o2; t2.type=o1;
+                        let m = getMatches();
+                        t1.type=o1; t2.type=o2;
+                        if(m) return [{r,c}, {r:r2,c:c2}];
                     }
                 }
-                
-                let gain = 10;
-                if (count === 4) gain = 20;
-                if (count >= 5) gain = 40;
-                score += gain;
-                scoreEl.innerText = score;
-                addFloatingText(gain, firstX, firstY);
-
-                await new Promise(res => setTimeout(res, 300));
-
-                for (let c=0; c<COLS; c++) {
-                    let empty = ROWS - 1;
-                    for (let r=ROWS-1; r>=0; r--) {
-                        if (board[r][c]) {
-                            const oldR = r;
-                            board[empty][c] = board[r][c];
-                            if (empty !== r) {
-                                board[empty][c].animY = (oldR - empty) * SIZE;
-                                board[r][c] = null;
-                            }
-                            empty--;
-                        }
-                    }
-                    for (let r=empty; r>=0; r--) {
-                        board[r][c] = { type: Math.floor(Math.random()*5), animX: 0, animY: -ROWS*SIZE };
-                    }
-                }
-                await new Promise(res => setTimeout(res, 400));
-                matches = getMatches();
             }
+            return null;
         }
 
-        function handleInput(e) {
-            if (isAnimating) return;
+        function getPos(e) {
             const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const c = Math.floor((clientX - rect.left) / (rect.width / COLS));
-            const r = Math.floor((clientY - rect.top) / (rect.height / ROWS));
-            if (e.type === 'mousedown' || e.type === 'touchstart') { dragStart = { r, c }; }
-            else if (dragStart) {
-                const dc = c - dragStart.c, dr = r - dragStart.r;
-                if (Math.abs(dc) + Math.abs(dr) === 1) {
-                    if (r >= 0 && r < ROWS && c >= 0 && c < COLS) slideSwap(dragStart.r, dragStart.c, r, c);
-                    dragStart = null;
-                }
-            }
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            return { c: Math.floor((cx - rect.left) / (rect.width / COLS)), r: Math.floor((cy - rect.top) / (rect.height / ROWS)) };
         }
 
-        canvas.addEventListener('mousedown', handleInput);
-        window.addEventListener('mousemove', handleInput);
+        canvas.addEventListener('mousedown', (e) => { if(!isAnimating) dragStart = getPos(e); });
+        window.addEventListener('mousemove', (e) => {
+            if(!dragStart || isAnimating) return;
+            const cur = getPos(e);
+            if(Math.abs(cur.c - dragStart.c) + Math.abs(cur.r - dragStart.r) === 1) { slideSwap(dragStart.r, dragStart.c, cur.r, cur.c); dragStart = null; }
+        });
+        canvas.addEventListener('touchstart', (e) => { if(!isAnimating) dragStart = getPos(e); });
+        window.addEventListener('touchmove', (e) => {
+            if(!dragStart || isAnimating) return;
+            const cur = getPos(e);
+            if(Math.abs(cur.c - dragStart.c) + Math.abs(cur.r - dragStart.r) === 1) { slideSwap(dragStart.r, dragStart.c, cur.r, cur.c); dragStart = null; }
+        });
         window.addEventListener('mouseup', () => dragStart = null);
-        canvas.addEventListener('touchstart', handleInput);
-        window.addEventListener('touchmove', handleInput);
         window.addEventListener('touchend', () => dragStart = null);
 
         init();

@@ -3,29 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>John and friends - Northern Forest</title>
+    <title>John and Friends - Summer Awakening</title>
     <link href="https://fonts.googleapis.com/css2?family=Varela+Round&display=swap" rel="stylesheet">
     <style>
         :root { 
-            --deep-forest-top: #0a1f26;
-            --deep-forest-mid: #1a3a4a;
-            --aurora-gradient: linear-gradient(180deg, #002b36 0%, #0d5c63 100%);
+            --summer-deep: #1b4332;
+            --summer-bright: #74c69d;
+            --accent-yellow: #ffef00;
             --font-cute: 'Varela Round', sans-serif;
         }
         body { 
-            background: linear-gradient(to bottom, var(--deep-forest-top) 0%, var(--deep-forest-mid) 60%, rgba(0,0,0,0) 100%), var(--aurora-gradient);
-            background-attachment: fixed; background-size: cover;
+            background: linear-gradient(180deg, #2d6a4f 0%, #95d5b2 100%);
+            background-attachment: fixed;
             display: flex; flex-direction: column; align-items: center; 
             font-family: var(--font-cute); margin: 0; 
             touch-action: none; overflow: hidden; height: 100vh;
+            position: relative;
         }
-        /* 简约森林剪影 */
+        /* Summer Forest Silhouette */
         body::before {
-            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%;
-            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path fill="%230a1f26" d="M0,100 L0,55 C15,45 25,65 35,55 C45,45 55,75 65,55 C75,35 85,65 95,55 L100,65 L100,100 Z"/></svg>');
-            background-size: auto 100%; background-position: bottom; z-index: -1;
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 35%;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path fill="%231b4332" d="M0,100 L10,70 L20,100 L30,60 L40,100 L55,75 L70,100 L85,65 L100,100 Z"/></svg>');
+            background-size: 100% 100%; z-index: -1; opacity: 0.5;
         }
-        h1 { color: white; margin: 15px 0; font-size: 32px; text-shadow: 0 0 10px rgba(0,255,255,0.8); }
+
+        h1 { color: white; margin: 20px 0 10px 0; font-size: 32px; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+
+        /* Music Control Button */
         #music-ctrl {
             position: absolute; top: 20px; right: 20px;
             background: rgba(255,255,255,0.25); border: 2px solid white;
@@ -33,59 +37,83 @@
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             font-size: 24px; backdrop-filter: blur(10px); z-index: 100;
         }
-        #game-box { padding: 12px; background: #d2b48c; border: 8px solid #8b5a2b; border-radius: 35px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-        canvas { border-radius: 20px; background: rgba(255, 255, 255, 0.9); display: block; }
-        .score-panel { margin-top: 15px; padding: 12px 45px; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); border-radius: 50px; color: white; font-size: 28px; font-weight: bold; border: 2px solid rgba(255,255,255,0.35); }
+
+        /* Side UI System */
+        #side-ui {
+            position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+        }
+        #progress-container {
+            width: 12px; height: 250px; background: rgba(255,255,255,0.3);
+            border-radius: 10px; overflow: hidden; border: 2px solid white;
+            position: relative;
+        }
+        #progress-bar { 
+            width: 100%; height: 0%; background: var(--accent-yellow); 
+            position: absolute; bottom: 0; transition: height 0.4s ease-out; 
+        }
+        .side-text {
+            writing-mode: vertical-rl; transform: rotate(180deg);
+            color: white; font-size: 12px; letter-spacing: 1px;
+            text-transform: uppercase; opacity: 0.9;
+        }
+
+        #game-box { padding: 12px; background: #e9c46a; border: 8px solid #cc8e35; border-radius: 35px; box-shadow: 0 15px 40px rgba(0,0,0,0.2); z-index: 10; }
+        canvas { border-radius: 20px; background: rgba(255, 255, 255, 0.85); display: block; }
+        
+        #win-screen {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(27, 67, 50, 0.95); flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000; color: white; text-align: center;
+        }
+        .win-btn {
+            margin-top: 30px; padding: 15px 40px; background: var(--accent-yellow); color: #1b4332;
+            border: none; border-radius: 30px; font-size: 20px; cursor: pointer; font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
     <button id="music-ctrl">🔇</button>
-    <h1>John and friends</h1>
+
+    <div id="side-ui">
+        <span class="side-text">Wake up the forest</span>
+        <div id="progress-container"><div id="progress-bar"></div></div>
+    </div>
+
+    <h1>John and Friends</h1>
     <div id="game-box"><canvas id="gameCanvas"></canvas></div>
-    <div class="score-panel">SCORE: <span id="score">0</span></div>
+
+    <div id="win-screen">
+        <h2 style="font-size: 42px; margin-bottom: 10px;">The Forest is Awake!</h2>
+        <p style="font-size: 18px; opacity: 0.9;">Great job! You and your friends saved the summer.</p>
+        <button class="win-btn" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
 
     <audio id="bgm"><source src="theme-song.mp3" type="audio/mpeg"></audio>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
         const bgm = document.getElementById('bgm');
         const musicBtn = document.getElementById('music-ctrl');
+        const progressBar = document.getElementById('progress-bar');
+        const winScreen = document.getElementById('win-screen');
 
         const sfxMove = new Audio('move.mp3');
         const sfxMatch = new Audio('match.mp3');
         
-        const ROWS = 7, COLS = 7, SIZE = 60;
+        const ROWS = 7, COLS = 7, SIZE = 55;
+        const TARGET_SCORE = 2000; 
         const charNames = ['John', 'Mary Ann', 'Goose', 'Moose', 'Crow'];
         
-        let images = {}, board = [], score = 0;
-        let dragStart = null, isAnimating = false;
-        let floatingTexts = [], snowParticles = [], fadeTimer = null;
-        let hintTiles = null, lastActionTime = Date.now();
-        let isMusicActive = false; // 记录玩家是否开启了音乐
-        let nextPlayTimer = null; // 5秒间隔计时器
+        let images = {}, board = [], score = 0, isWon = false;
+        let dragStart = null, isAnimating = false, isMusicActive = false;
+        let floatingTexts = [], fadeTimer = null, nextPlayTimer = null;
 
-        // --- 核心：改进的音乐循环逻辑 ---
-        
-        function playWithFadeIn() {
-            bgm.volume = 0;
-            bgm.play().catch(e => console.log("Play interrupted"));
-            fadeMusic(1.0, 2000); // 2秒淡入
-        }
+        charNames.forEach(name => { images[name] = new Image(); images[name].src = name + '.png'; });
 
-        // 监听播放结束事件
-        bgm.addEventListener('ended', () => {
-            if (isMusicActive) {
-                console.log("Track ended, waiting 5 seconds...");
-                // 5秒后再次响起
-                nextPlayTimer = setTimeout(() => {
-                    if (isMusicActive) playWithFadeIn();
-                }, 5000); 
-            }
-        });
-
+        // --- Music Logic ---
         function fadeMusic(target, duration, callback) {
             clearInterval(fadeTimer);
             const step = 0.05;
@@ -103,51 +131,42 @@
 
         musicBtn.addEventListener('click', () => {
             if (isMusicActive) {
-                // 关闭音乐：淡出并清除定时器
                 isMusicActive = false;
                 clearTimeout(nextPlayTimer);
                 fadeMusic(0, 1500, () => musicBtn.innerText = "🔇");
             } else {
-                // 开启音乐
                 isMusicActive = true;
                 musicBtn.innerText = "🔊";
-                playWithFadeIn();
+                bgm.volume = 0;
+                bgm.play().catch(e => console.log("User interaction required"));
+                fadeMusic(1.0, 2000);
             }
         });
 
-        // --- 以下是游戏渲染与交互逻辑 (保持不变) ---
-
-        function playSFX(audio) {
-            const clone = audio.cloneNode();
-            clone.volume = 0.4;
-            clone.play().catch(e => {}); 
-        }
+        bgm.addEventListener('ended', () => {
+            if (isMusicActive) {
+                nextPlayTimer = setTimeout(() => {
+                    if (isMusicActive) {
+                        bgm.volume = 0;
+                        bgm.play();
+                        fadeMusic(1.0, 2000);
+                    }
+                }, 5000); // 5-second breathing room
+            }
+        });
 
         function init() {
             const dpr = window.devicePixelRatio || 2;
-            canvas.width = (COLS * SIZE) * dpr;
-            canvas.height = (ROWS * SIZE) * dpr;
-            canvas.style.width = (COLS * SIZE) + 'px';
-            canvas.style.height = (ROWS * SIZE) + 'px';
+            canvas.width = (COLS * SIZE) * dpr; canvas.height = (ROWS * SIZE) * dpr;
+            canvas.style.width = (COLS * SIZE) + 'px'; canvas.style.height = (ROWS * SIZE) + 'px';
             ctx.scale(dpr, dpr);
-
-            for(let i=0; i<80; i++) {
-                snowParticles.push({ x: Math.random()*COLS*SIZE, y: Math.random()*ROWS*SIZE, r: Math.random()*1.8+0.5, v: Math.random()*0.3 + 0.1 });
-            }
-
-            charNames.forEach(name => {
-                const img = new Image();
-                img.src = name + '.png'; 
-                images[name] = img;
-            });
 
             for (let r = 0; r < ROWS; r++) {
                 board[r] = [];
                 for (let c = 0; c < COLS; c++) {
                     let type;
                     do { type = Math.floor(Math.random() * 5); }
-                    while ((c >= 2 && board[r][c-1].type === type && board[r][c-2].type === type) || 
-                           (r >= 2 && board[r-1][c].type === type && board[r-2][c].type === type));
+                    while ((c >= 2 && board[r][c-1].type === type && board[r][c-2].type === type) || (r >= 2 && board[r-1][c].type === type && board[r-2][c].type === type));
                     board[r][c] = { type, animX: 0, animY: 0 };
                 }
             }
@@ -155,77 +174,62 @@
         }
 
         function renderLoop() {
+            if(isWon) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const now = Date.now();
-
-            // 70% 透明度下雪
-            ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; 
-            snowParticles.forEach(p => {
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
-                p.y += p.v; if(p.y > ROWS*SIZE) p.y = -p.r;
-            });
-
-            if (!isAnimating && now - lastActionTime > 6000) { if (!hintTiles) hintTiles = findHint(); } 
-            else { hintTiles = null; }
-
+            
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
-                    const tile = board[r][c];
-                    if (!tile) continue;
+                    const tile = board[r][c]; if (!tile) continue;
                     tile.animX *= 0.75; tile.animY *= 0.75;
-                    let scale = (hintTiles && hintTiles.some(h => h.r===r && h.c===c)) ? 1 + Math.sin(now/150)*0.1 : 1;
-                    
                     ctx.save();
                     ctx.translate(c*SIZE + tile.animX + SIZE/2, r*SIZE + tile.animY + SIZE/2);
-                    ctx.scale(scale, scale);
-                    ctx.fillStyle = "rgba(255,255,255,0.75)";
-                    ctx.beginPath(); ctx.roundRect(-SIZE/2+4, -SIZE/2+4, SIZE-8, SIZE-8, 14); ctx.fill();
+                    const padding = 4, cornerRadius = 14, thickness = 5;
+                    const grad = ctx.createLinearGradient(0, -SIZE/2, 0, SIZE/2);
+                    grad.addColorStop(0, '#74c69d'); grad.addColorStop(1, '#2d6a4f');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.roundRect(-SIZE/2 + padding, -SIZE/2 + padding + thickness, SIZE - padding*2, SIZE - padding*2, cornerRadius);
+                    ctx.fill();
+                    ctx.fillStyle = "#ffffff";
+                    ctx.beginPath();
+                    ctx.roundRect(-SIZE/2 + padding, -SIZE/2 + padding, SIZE - padding*2, SIZE - padding*2, cornerRadius);
+                    ctx.fill();
                     const img = images[charNames[tile.type]];
-                    if (img && img.complete) ctx.drawImage(img, -SIZE/2+8, -SIZE/2+8, SIZE-16, SIZE-16);
+                    if (img?.complete) ctx.drawImage(img, -SIZE/2 + 8, -SIZE/2 + 8, SIZE - 16, SIZE - 16);
                     ctx.restore();
                 }
             }
 
+            const progress = Math.min((score / TARGET_SCORE) * 100, 100);
+            progressBar.style.height = progress + "%";
+            
+            if(score >= TARGET_SCORE && !isWon) { 
+                isWon = true; 
+                setTimeout(() => winScreen.style.display = 'flex', 600); 
+            }
+
             for (let i = floatingTexts.length - 1; i >= 0; i--) {
-                let ft = floatingTexts[i];
-                ctx.fillStyle = `rgba(255, 255, 255, ${ft.alpha})`;
-                ctx.font = "bold 24px 'Varela Round'"; ctx.textAlign = "center";
-                ctx.fillText(ft.val, ft.x, ft.y);
-                ft.y -= 1; ft.alpha -= 0.02; if(ft.alpha <= 0) floatingTexts.splice(i,1);
+                let ft = floatingTexts[i]; ctx.fillStyle = `rgba(27, 67, 50, ${ft.alpha})`;
+                ctx.font = "bold 18px 'Varela Round'"; ctx.textAlign = "center";
+                ctx.fillText(ft.val, ft.x, ft.y); ft.y -= 1; ft.alpha -= 0.02; if(ft.alpha <= 0) floatingTexts.splice(i,1);
             }
             requestAnimationFrame(renderLoop);
         }
 
-        async function slideSwap(r1, c1, r2, c2) {
-            isAnimating = true; lastActionTime = Date.now();
-            playSFX(sfxMove); 
-            const t1 = board[r1][c1], t2 = board[r2][c2];
-            t1.animX = (c2-c1)*SIZE; t1.animY = (r2-r1)*SIZE;
-            t2.animX = (c1-c2)*SIZE; t2.animY = (r1-r2)*SIZE;
-            [t1.type, t2.type] = [t2.type, t1.type];
-            await new Promise(r => setTimeout(r, 250));
-            const m = getMatches();
-            if(m) await processSequence(m);
-            else {
-                playSFX(sfxMove); 
-                t1.animX = (c2-c1)*SIZE; t1.animY = (r2-r1)*SIZE;
-                t2.animX = (c1-c2)*SIZE; t2.animY = (r1-r2)*SIZE;
-                [t1.type, t2.type] = [t2.type, t1.type];
-                await new Promise(r => setTimeout(r, 250));
-            }
-            isAnimating = false;
-        }
-
         async function processSequence(m) {
+            let combo = 0;
             while(m) {
-                playSFX(sfxMatch);
+                const s = sfxMatch.cloneNode();
+                s.playbackRate = Math.min(1 + (combo * 0.2), 2); s.play();
                 let count = 0, fx, fy;
                 for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
                     if(m[r][c]) { if(count===0){fx=c*SIZE; fy=r*SIZE;} board[r][c]=null; count++; }
                 }
-                score += count*10; scoreEl.innerText = score;
-                floatingTexts.push({val: "+"+(count*10), x: fx+SIZE/2, y: fy+SIZE/2, alpha: 1});
-                await new Promise(r => setTimeout(r, 300));
+                const gain = count * 10 + (combo * 20);
+                score += gain;
+                floatingTexts.push({val: combo > 0 ? `COMBO! +${gain}` : `+${gain}`, x: fx+SIZE/2, y: fy+SIZE/2, alpha: 1});
+                combo++;
+                await new Promise(r => setTimeout(r, 250));
                 for(let c=0; c<COLS; c++) {
                     let empty = ROWS-1;
                     for(let r=ROWS-1; r>=0; r--) {
@@ -237,9 +241,23 @@
                     }
                     for(let r=empty; r>=0; r--) board[r][c]={type:Math.floor(Math.random()*5), animX:0, animY:-ROWS*SIZE};
                 }
-                await new Promise(r => setTimeout(r, 400));
+                await new Promise(r => setTimeout(r, 350));
                 m = getMatches();
             }
+        }
+
+        async function slideSwap(r1, c1, r2, c2) {
+            if(isWon) return;
+            isAnimating = true; sfxMove.play();
+            const t1 = board[r1][c1], t2 = board[r2][c2];
+            t1.animX = (c2-c1)*SIZE; t1.animY = (r2-r1)*SIZE;
+            t2.animX = (c1-c2)*SIZE; t2.animY = (r1-r2)*SIZE;
+            [t1.type, t2.type] = [t2.type, t1.type];
+            await new Promise(r => setTimeout(r, 200));
+            const m = getMatches();
+            if(m) await processSequence(m);
+            else { [t1.type, t2.type] = [t2.type, t1.type]; t1.animX=t1.animY=t2.animX=t2.animY=0; }
+            isAnimating = false;
         }
 
         function getMatches() {
@@ -253,43 +271,16 @@
             return found ? matched : null;
         }
 
-        function findHint() {
-            const dirs = [[1,0],[0,1]];
-            for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
-                for(let [dr, dc] of dirs) {
-                    let r2=r+dr, c2=c+dc;
-                    if(r2<ROWS && c2<COLS) {
-                        let t1=board[r][c], t2=board[r2][c2];
-                        let o1=t1.type, o2=t2.type;
-                        t1.type=o2; t2.type=o1;
-                        let m = getMatches();
-                        t1.type=o1; t2.type=o2;
-                        if(m) return [{r,c}, {r:r2,c:c2}];
-                    }
-                }
-            }
-            return null;
-        }
-
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
             const cy = e.touches ? e.touches[0].clientY : e.clientY;
             return { c: Math.floor((cx - rect.left) / (rect.width / COLS)), r: Math.floor((cy - rect.top) / (rect.height / ROWS)) };
         }
-
         canvas.addEventListener('mousedown', (e) => { if(!isAnimating) dragStart = getPos(e); });
-        window.addEventListener('mousemove', (e) => {
-            if(!dragStart || isAnimating) return;
-            const cur = getPos(e);
-            if(Math.abs(cur.c - dragStart.c) + Math.abs(cur.r - dragStart.r) === 1) { slideSwap(dragStart.r, dragStart.c, cur.r, cur.c); dragStart = null; }
-        });
+        window.addEventListener('mousemove', (e) => { if(!dragStart || isAnimating) return; const cur = getPos(e); if(Math.abs(cur.c - dragStart.c) + Math.abs(cur.r - dragStart.r) === 1) { slideSwap(dragStart.r, dragStart.c, cur.r, cur.c); dragStart = null; } });
         canvas.addEventListener('touchstart', (e) => { if(!isAnimating) dragStart = getPos(e); });
-        window.addEventListener('touchmove', (e) => {
-            if(!dragStart || isAnimating) return;
-            const cur = getPos(e);
-            if(Math.abs(cur.c - dragStart.c) + Math.abs(cur.r - dragStart.r) === 1) { slideSwap(dragStart.r, dragStart.c, cur.r, cur.c); dragStart = null; }
-        });
+        window.addEventListener('touchmove', (e) => { if(!dragStart || isAnimating) return; const cur = getPos(e); if(Math.abs(cur.c - dragStart.c) + Math.abs(cur.r - dragStart.r) === 1) { slideSwap(dragStart.r, dragStart.c, cur.r, cur.c); dragStart = null; } });
         window.addEventListener('mouseup', () => dragStart = null);
         window.addEventListener('touchend', () => dragStart = null);
 

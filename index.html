@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>John and friends - Match 3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Palsy&family=Varela+Round&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --pink: #ff85b2; 
+            --bg: #fff5f8; 
+            --font-cute: 'Varela Round', 'Palsy', sans-serif;
+        }
+        body { 
+            background: var(--bg); 
+            display: flex; flex-direction: column; 
+            align-items: center; 
+            font-family: var(--font-cute); 
+            margin: 0; 
+            touch-action: none; 
+            overflow: hidden;
+        }
+        h1 { 
+            color: var(--pink); 
+            margin: 20px 0; 
+            font-size: 36px;
+            text-shadow: 3px 3px 0px white; 
+            pointer-events: none; 
+        }
+        #game-box { 
+            padding: 12px; 
+            background: white; 
+            border-radius: 30px; 
+            box-shadow: 0 15px 45px rgba(255, 133, 178, 0.25); 
+            position: relative; 
+        }
+        canvas { 
+            cursor: grab; 
+            border-radius: 20px; 
+            background: #fffcfd; 
+            display: block; 
+            filter: saturate(1.2) contrast(1.05); 
+        }
+        .score-container { 
+            margin-top: 20px; 
+            font-size: 32px; 
+            color: var(--pink); 
+            font-weight: bold; 
+            background: white;
+            padding: 10px 40px;
+            border-radius: 50px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        #score { color: #ff5e99; }
+    </style>
+</head>
+<body>
+
+    <h1>John and friends</h1>
+    
+    <div id="game-box">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div class="score-container">
+        SCORE: <span id="score">0</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+
+        const ROWS = 7, COLS = 7, SIZE = 60;
+        const charNames = ['John', 'Mary Ann', 'Goose', 'Moose', 'Crow'];
+        
+        let images = {}, board = [], score = 0;
+        let dragStart = null, isAnimating = false;
+        let floatingTexts = []; 
+        let hintTiles = null;   
+        let lastActionTime = Date.now(); 
+
+        function init() {
+            const dpr = window.devicePixelRatio || 2;
+            canvas.width = (COLS * SIZE) * dpr;
+            canvas.height = (ROWS * SIZE) * dpr;
+            canvas.style.width = (COLS * SIZE) + 'px';
+            canvas.style.height = (ROWS * SIZE) + 'px';
+            ctx.scale(dpr, dpr);
+
+            // 设置 Canvas 默认字体为圆体
+            ctx.font = "bold 20px 'Varela Round'";
+
+            charNames.forEach(name => {
+                const img = new Image();
+                img.src = name + '.png'; 
+                images[name] = img;
+            });
+
+            for (let r = 0; r < ROWS; r++) {
+                board[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    let type;
+                    do { type = Math.floor(Math.random() * 5); }
+                    while ((c >= 2 && board[r][c-1].type === type && board[r][c-2].type === type) || 
+                           (r >= 2 && board[r-1][c].type === type && board[r-2][c].type === type));
+                    board[r][c] = { type, animX: 0, animY: 0 };
+                }
+            }
+            requestAnimationFrame(render);
+        }
+
+        function addFloatingText(val, x, y) {
+            floatingTexts.push({
+                val: "+" + val,
+                x: x + SIZE/2,
+                y: y + SIZE/2,
+                alpha: 1,
+                life: 60
+            });
+        }
+
+        function findHint() {
+            const dirs = [[1, 0], [0, 1]];
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    for (let [dr, dc] of dirs) {
+                        let r2 = r + dr, c2 = c + dc;
+                        if (r2 < ROWS && c2 < COLS) {
+                            let t1 = board[r][c], t2 = board[r2][c2];
+                            let old1 = t1.type, old2 = t2.type;
+                            t1.type = old2; t2.type = old1;
+                            if (checkMatchesOnly()) {
+                                t1.type = old1; t2.type = old2;
+                                return [{r, c}, {r: r2, c: c2}];
+                            }
+                            t1.type = old1; t2.type = old2;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function checkMatchesOnly() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    let type = board[r][c].type;
+                    if (c < COLS - 2 && board[r][c+1].type === type && board[r][c+2].type === type) return true;
+                    if (r < ROWS - 2 && board[r+1][c].type === type && board[r+2][c].type === type) return true;
+                }
+            }
+            return false;
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let now = Date.now();
+
+            if (!isAnimating && now - lastActionTime > 6000) {
+                if (!hintTiles) hintTiles = findHint();
+            } else { hintTiles = null; }
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const tile = board[r][c];
+                    if (!tile) continue;
+
+                    tile.animX *= 0.7; tile.animY *= 0.7;
+                    if (Math.abs(tile.animX) < 0.1) tile.animX = 0;
+                    if (Math.abs(tile.animY) < 0.1) tile.animY = 0;
+
+                    let scale = 1;
+                    if (hintTiles && ((hintTiles[0].r === r && hintTiles[0].c === c) || (hintTiles[1].r === r && hintTiles[1].c === c))) {
+                        scale = 1 + Math.sin(now / 200) * 0.12;
+                    }
+
+                    const drawX = c * SIZE + tile.animX;
+                    const drawY = r * SIZE + tile.animY;
+                    
+                    ctx.save();
+                    ctx.translate(drawX + SIZE/2, drawY + SIZE/2);
+                    ctx.scale(scale, scale);
+                    
+                    ctx.fillStyle = '#fff9fb';
+                    ctx.beginPath();
+                    ctx.roundRect(-SIZE/2+3, -SIZE/2+3, SIZE-6, SIZE-6, 12);
+                    ctx.fill();
+
+                    const img = images[charNames[tile.type]];
+                    if (img && img.complete) {
+                        ctx.drawImage(img, 0, 0, img.width, img.width, -SIZE/2+8, -SIZE/2+8, SIZE-16, SIZE-16);
+                    }
+                    ctx.restore();
+                }
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ctx.fillStyle = `rgba(255, 133, 178, ${ft.alpha})`;
+                ctx.font = "bold 24px 'Varela Round'";
+                ctx.textAlign = "center";
+                ctx.fillText(ft.val, ft.x, ft.y);
+                ft.y -= 1.2; ft.alpha -= 0.02; ft.life--;
+                if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        async function slideSwap(r1, c1, r2, c2) {
+            isAnimating = true;
+            lastActionTime = Date.now();
+            const t1 = board[r1][c1], t2 = board[r2][c2];
+
+            t1.animX = (c2 - c1) * SIZE; t1.animY = (r2 - r1) * SIZE;
+            t2.animX = (c1 - c2) * SIZE; t2.animY = (r1 - r2) * SIZE;
+            [t1.type, t2.type] = [t2.type, t1.type];
+
+            await new Promise(res => setTimeout(res, 250));
+
+            const matches = getMatches();
+            if (matches) { await processSequence(matches); } 
+            else {
+                t1.animX = (c2 - c1) * SIZE; t1.animY = (r2 - r1) * SIZE;
+                t2.animX = (c1 - c2) * SIZE; t2.animY = (r1 - r2) * SIZE;
+                [t1.type, t2.type] = [t2.type, t1.type];
+                await new Promise(res => setTimeout(res, 250));
+            }
+            isAnimating = false;
+        }
+
+        function getMatches() {
+            let matched = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+            let found = false;
+            for (let r=0; r<ROWS; r++) {
+                for (let c=0; c<COLS; c++) {
+                    let t = board[r][c]?.type; if (t===undefined) continue;
+                    if (c<COLS-2 && board[r][c+1]?.type===t && board[r][c+2]?.type===t) matched[r][c]=matched[r][c+1]=matched[r][c+2]=found=true;
+                    if (r<ROWS-2 && board[r+1][c]?.type===t && board[r+2][c]?.type===t) matched[r][c]=matched[r+1][c]=matched[r+2][c]=found=true;
+                }
+            }
+            return found ? matched : null;
+        }
+
+        async function processSequence(matches) {
+            while (matches) {
+                let count = 0;
+                let firstX, firstY;
+                for (let r=0; r<ROWS; r++) {
+                    for (let c=0; c<COLS; c++) {
+                        if (matches[r][c]) {
+                            if (count === 0) { firstX = c*SIZE; firstY = r*SIZE; }
+                            board[r][c] = null; count++;
+                        }
+                    }
+                }
+                
+                let gain = 10;
+                if (count === 4) gain = 20;
+                if (count >= 5) gain = 40;
+                score += gain;
+                scoreEl.innerText = score;
+                addFloatingText(gain, firstX, firstY);
+
+                await new Promise(res => setTimeout(res, 300));
+
+                for (let c=0; c<COLS; c++) {
+                    let empty = ROWS - 1;
+                    for (let r=ROWS-1; r>=0; r--) {
+                        if (board[r][c]) {
+                            const oldR = r;
+                            board[empty][c] = board[r][c];
+                            if (empty !== r) {
+                                board[empty][c].animY = (oldR - empty) * SIZE;
+                                board[r][c] = null;
+                            }
+                            empty--;
+                        }
+                    }
+                    for (let r=empty; r>=0; r--) {
+                        board[r][c] = { type: Math.floor(Math.random()*5), animX: 0, animY: -ROWS*SIZE };
+                    }
+                }
+                await new Promise(res => setTimeout(res, 400));
+                matches = getMatches();
+            }
+        }
+
+        function handleInput(e) {
+            if (isAnimating) return;
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const c = Math.floor((clientX - rect.left) / (rect.width / COLS));
+            const r = Math.floor((clientY - rect.top) / (rect.height / ROWS));
+            if (e.type === 'mousedown' || e.type === 'touchstart') { dragStart = { r, c }; }
+            else if (dragStart) {
+                const dc = c - dragStart.c, dr = r - dragStart.r;
+                if (Math.abs(dc) + Math.abs(dr) === 1) {
+                    if (r >= 0 && r < ROWS && c >= 0 && c < COLS) slideSwap(dragStart.r, dragStart.c, r, c);
+                    dragStart = null;
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleInput);
+        window.addEventListener('mousemove', handleInput);
+        window.addEventListener('mouseup', () => dragStart = null);
+        canvas.addEventListener('touchstart', handleInput);
+        window.addEventListener('touchmove', handleInput);
+        window.addEventListener('touchend', () => dragStart = null);
+
+        init();
+    </script>
+</body>
+</html>
